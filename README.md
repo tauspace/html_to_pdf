@@ -42,6 +42,53 @@ Set the `GOTENBERG_URL` environment variable to the base URL of your Gotenberg i
 export GOTENBERG_URL=http://localhost:3000
 ```
 
+## How it works
+
+### OTP supervision tree
+
+When the application starts, `HtmlToPdf.Application` supervises a Finch connection pool. All HTTP traffic to Gotenberg flows through that pool.
+
+```mermaid
+graph TD
+    App["HtmlToPdf.Application\n(Supervisor)"]
+    Finch["HtmlToPdf.Finch\n(Finch connection pool)"]
+    Gotenberg["Gotenberg\n(remote HTTP service)"]
+
+    App -->|starts & supervises| Finch
+    Finch -->|HTTP POST multipart/form-data| Gotenberg
+```
+
+### Request flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant M as HtmlToPdf
+    participant F as HtmlToPdf.Finch
+    participant G as Gotenberg
+
+    C->>M: generate_pdf(html, opts)
+    M->>M: validate_image_srcs(html)
+
+    alt non-data-URI src detected
+        M-->>C: {:error, {:non_inline_image_src, src}}
+    else validation passes
+        M->>F: Finch.request POST /forms/chromium/convert/html
+        Note over M,F: multipart/form-data body with index.html
+        F->>G: HTTP POST (via connection pool)
+        G->>G: Chromium renders HTML → PDF
+        G-->>F: 200 OK + PDF binary
+        F-->>M: {:ok, %Finch.Response{status: 200}}
+
+        alt generate_file: true
+            M->>M: File.write(System.tmp_dir!(), pdf)
+            M-->>C: {:ok, "/tmp/html_to_pdf_N.pdf"}
+        else default
+            M-->>C: {:ok, pdf_binary}
+        end
+    end
+```
+
 ## Usage
 
 ### Basic — return PDF binary
