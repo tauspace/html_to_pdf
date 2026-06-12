@@ -2,6 +2,30 @@
 
 Converts HTML to PDF by sending it to a [Gotenberg](https://gotenberg.dev) instance via its Chromium HTML-to-PDF API. Uses [Finch](https://github.com/sneako/finch) for HTTP.
 
+## Installation
+
+This library is not published on Hex. Add it as a Git dependency in your `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:html_to_pdf, github: "tauspace/html_to_pdf"}
+  ]
+end
+```
+
+To pin to a specific commit (recommended for production):
+
+```elixir
+{:html_to_pdf, github: "tauspace/html_to_pdf", ref: "bbe08a0"}
+```
+
+Then fetch dependencies:
+
+```bash
+mix deps.get
+```
+
 ## Requirements
 
 A running Gotenberg instance. The quickest way is Docker:
