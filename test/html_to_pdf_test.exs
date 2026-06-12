@@ -6,9 +6,6 @@ defmodule HtmlToPdfTest do
   # 1x1 transparent GIF as a data URI
   @data_uri_img "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
 
-  # 10x10 red PNG as a data URI
-  @data_uri_png "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg=="
-
   describe "generate_pdf/2" do
     test "converts HTML to a PDF binary using the Gotenberg demo server" do
       html = """
@@ -78,14 +75,16 @@ defmodule HtmlToPdfTest do
     end
 
     test "generate_file: true writes PDF to a temp file and returns its path" do
+      data_uri = red_png_data_uri(50, 50)
+
       html = """
       <!DOCTYPE html>
       <html>
         <head><meta charset="utf-8" /></head>
         <body>
           <h1>PDF with embedded image</h1>
-          <img src="#{@data_uri_png}" alt="red square" style="width:100px;height:100px;" />
-          <p>The image above is embedded as a base64 data URI.</p>
+          <img src="#{data_uri}" alt="red square" style="width:200px;height:200px;display:block;" />
+          <p>The red square above is a PNG embedded as a base64 data URI.</p>
         </body>
       </html>
       """
@@ -101,5 +100,30 @@ defmodule HtmlToPdfTest do
 
       IO.puts("\nGenerated PDF saved to: #{path}")
     end
+  end
+
+  # Builds a solid-colour PNG of the given dimensions using raw Elixir/OTP — no
+  # external library needed. Each scanline is a filter-0 row of RGB pixels.
+  defp red_png_data_uri(width, height) do
+    sig = <<137, 80, 78, 71, 13, 10, 26, 10>>
+
+    ihdr_data = <<width::32, height::32, 8, 2, 0, 0, 0>>
+
+    # filter byte (None=0) followed by one red pixel per column
+    row = <<0>> <> :binary.copy(<<255, 0, 0>>, width)
+    raw_data = :binary.copy(row, height)
+
+    png =
+      sig <>
+        png_chunk("IHDR", ihdr_data) <>
+        png_chunk("IDAT", :zlib.compress(raw_data)) <>
+        png_chunk("IEND", <<>>)
+
+    "data:image/png;base64," <> Base.encode64(png)
+  end
+
+  defp png_chunk(type, data) do
+    crc = :erlang.crc32(<<type::binary, data::binary>>)
+    <<byte_size(data)::32, type::binary, data::binary, crc::32>>
   end
 end
