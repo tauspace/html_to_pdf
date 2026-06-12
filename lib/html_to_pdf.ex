@@ -21,6 +21,12 @@ defmodule HtmlToPdf do
   - `{:error, reason}` on a request failure
   """
   def generate_pdf(html, _opts \\ []) do
+    with :ok <- validate_no_external_images(html) do
+      generate_pdf_request(html)
+    end
+  end
+
+  defp generate_pdf_request(html) do
     url = System.fetch_env!("GOTENBERG_URL") <> "/forms/chromium/convert/html"
     boundary = "----FormBoundary" <> (:crypto.strong_rand_bytes(8) |> Base.encode16())
 
@@ -41,6 +47,22 @@ defmodule HtmlToPdf do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # Matches src="..." or src='...' inside any <img> tag.
+  @img_src_re ~r/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i
+
+  defp validate_no_external_images(html) do
+    external =
+      @img_src_re
+      |> Regex.scan(html, capture: :all_but_first)
+      |> List.flatten()
+      |> Enum.find(&String.match?(&1, ~r/^https?:\/\//i))
+
+    case external do
+      nil -> :ok
+      url -> {:error, {:external_image_src, url}}
     end
   end
 
