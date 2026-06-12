@@ -21,7 +21,7 @@ defmodule HtmlToPdf do
   - `{:error, reason}` on a request failure
   """
   def generate_pdf(html, _opts \\ []) do
-    with :ok <- validate_no_external_images(html) do
+    with :ok <- validate_image_srcs(html) do
       generate_pdf_request(html)
     end
   end
@@ -53,16 +53,16 @@ defmodule HtmlToPdf do
   # Matches src="..." or src='...' inside any <img> tag.
   @img_src_re ~r/<img\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/i
 
-  defp validate_no_external_images(html) do
-    external =
+  defp validate_image_srcs(html) do
+    invalid =
       @img_src_re
       |> Regex.scan(html, capture: :all_but_first)
       |> List.flatten()
-      |> Enum.find(&String.match?(&1, ~r/^https?:\/\//i))
+      |> Enum.find(&(not String.starts_with?(&1, "data:")))
 
-    case external do
+    case invalid do
       nil -> :ok
-      url -> {:error, {:external_image_src, url}}
+      src -> {:error, {:non_inline_image_src, src}}
     end
   end
 

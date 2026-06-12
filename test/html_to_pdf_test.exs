@@ -36,34 +36,41 @@ defmodule HtmlToPdfTest do
       assert binary_part(pdf, 0, 5) == "%PDF-"
     end
 
-    test "rejects img tags with http src" do
-      html = ~s(<img src="http://example.com/image.png" />)
-
-      assert {:error, {:external_image_src, "http://example.com/image.png"}} =
-               HtmlToPdf.generate_pdf(html)
-    end
-
-    test "rejects img tags with https src" do
+    test "rejects img with https src" do
       html = ~s(<img src="https://example.com/image.png" />)
 
-      assert {:error, {:external_image_src, "https://example.com/image.png"}} =
+      assert {:error, {:non_inline_image_src, "https://example.com/image.png"}} =
                HtmlToPdf.generate_pdf(html)
     end
 
-    test "rejects first offending URL when multiple external images are present" do
+    test "rejects img with http src" do
+      html = ~s(<img src="http://example.com/image.png" />)
+
+      assert {:error, {:non_inline_image_src, "http://example.com/image.png"}} =
+               HtmlToPdf.generate_pdf(html)
+    end
+
+    test "rejects img with relative path src" do
+      html = ~s(<img src="images/photo.jpg" />)
+
+      assert {:error, {:non_inline_image_src, "images/photo.jpg"}} =
+               HtmlToPdf.generate_pdf(html)
+    end
+
+    test "rejects first offending src when multiple non-inline images are present" do
       html = """
-      <img src="https://a.com/one.png" />
-      <img src="https://b.com/two.png" />
+      <img src="images/first.png" />
+      <img src="https://example.com/second.png" />
       """
 
-      assert {:error, {:external_image_src, "https://a.com/one.png"}} =
+      assert {:error, {:non_inline_image_src, "images/first.png"}} =
                HtmlToPdf.generate_pdf(html)
     end
 
-    test "rejects external src in single-quoted attribute" do
-      html = ~s(<img src='https://example.com/image.png' />)
+    test "rejects non-inline src in single-quoted attribute" do
+      html = ~s(<img src='images/photo.jpg' />)
 
-      assert {:error, {:external_image_src, "https://example.com/image.png"}} =
+      assert {:error, {:non_inline_image_src, "images/photo.jpg"}} =
                HtmlToPdf.generate_pdf(html)
     end
   end
