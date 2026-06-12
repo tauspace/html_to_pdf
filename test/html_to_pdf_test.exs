@@ -6,6 +6,9 @@ defmodule HtmlToPdfTest do
   # 1x1 transparent GIF as a data URI
   @data_uri_img "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
 
+  # 10x10 red PNG as a data URI
+  @data_uri_png "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg=="
+
   describe "generate_pdf/2" do
     test "converts HTML to a PDF binary using the Gotenberg demo server" do
       html = """
@@ -72,6 +75,31 @@ defmodule HtmlToPdfTest do
 
       assert {:error, {:non_inline_image_src, "images/photo.jpg"}} =
                HtmlToPdf.generate_pdf(html)
+    end
+
+    test "generate_file: true writes PDF to a temp file and returns its path" do
+      html = """
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8" /></head>
+        <body>
+          <h1>PDF with embedded image</h1>
+          <img src="#{@data_uri_png}" alt="red square" style="width:100px;height:100px;" />
+          <p>The image above is embedded as a base64 data URI.</p>
+        </body>
+      </html>
+      """
+
+      System.put_env("GOTENBERG_URL", @gotenberg_demo)
+
+      assert {:ok, path} = HtmlToPdf.generate_pdf(html, generate_file: true)
+
+      assert Path.extname(path) == ".pdf"
+      assert File.exists?(path)
+      assert {:ok, content} = File.read(path)
+      assert binary_part(content, 0, 5) == "%PDF-"
+
+      IO.puts("\nGenerated PDF saved to: #{path}")
     end
   end
 end

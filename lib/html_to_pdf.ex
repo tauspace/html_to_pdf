@@ -13,16 +13,25 @@ defmodule HtmlToPdf do
 
   ## Parameters
   - `html` - binary containing HTML content
-  - `_opts` - options (reserved for future use)
+  - `opts` - keyword list of options:
+    - `:generate_file` - when `true`, writes the PDF to a temp file and
+      returns `{:ok, path}` instead of `{:ok, binary}`. Defaults to `false`.
 
   ## Returns
-  - `{:ok, pdf_binary}` on success
+  - `{:ok, pdf_binary}` on success (default)
+  - `{:ok, path}` when `generate_file: true`
+  - `{:error, {:non_inline_image_src, src}}` if an img tag has a non-data-URI src
   - `{:error, {status_code, body}}` on a non-200 HTTP response
-  - `{:error, reason}` on a request failure
+  - `{:error, reason}` on a request or file-write failure
   """
-  def generate_pdf(html, _opts \\ []) do
-    with :ok <- validate_image_srcs(html) do
-      generate_pdf_request(html)
+  def generate_pdf(html, opts \\ []) do
+    with :ok <- validate_image_srcs(html),
+         {:ok, pdf} <- generate_pdf_request(html) do
+      if Keyword.get(opts, :generate_file, false) do
+        write_temp_file(pdf)
+      else
+        {:ok, pdf}
+      end
     end
   end
 
@@ -47,6 +56,16 @@ defmodule HtmlToPdf do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp write_temp_file(pdf) do
+    filename = "html_to_pdf_#{:erlang.unique_integer([:positive, :monotonic])}.pdf"
+    path = Path.join(System.tmp_dir!(), filename)
+
+    case File.write(path, pdf) do
+      :ok -> {:ok, path}
+      {:error, reason} -> {:error, reason}
     end
   end
 
