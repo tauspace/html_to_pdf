@@ -102,6 +102,31 @@ defmodule HtmlToPdfTest do
     end
   end
 
+  describe "GOTENBERG_TIMEOUT" do
+    test "returns an error when the request exceeds the configured timeout" do
+      {:ok, listen_socket} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true])
+      {:ok, {_, port}} = :inet.sockname(listen_socket)
+
+      on_exit(fn ->
+        :gen_tcp.close(listen_socket)
+        System.delete_env("GOTENBERG_TIMEOUT")
+      end)
+
+      # Accept the connection but never send a response, simulating a hung server.
+      Task.start(fn ->
+        case :gen_tcp.accept(listen_socket, 5_000) do
+          {:ok, _conn} -> Process.sleep(:infinity)
+          _ -> :ok
+        end
+      end)
+
+      System.put_env("GOTENBERG_URL", "http://localhost:#{port}")
+      System.put_env("GOTENBERG_TIMEOUT", "200")
+
+      assert {:error, _reason} = HtmlToPdf.generate_pdf("<html><body>timeout</body></html>")
+    end
+  end
+
   # Builds a solid-colour PNG of the given dimensions using raw Elixir/OTP — no
   # external library needed. Each scanline is a filter-0 row of RGB pixels.
   defp red_png_data_uri(width, height) do

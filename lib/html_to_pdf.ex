@@ -3,6 +3,8 @@ defmodule HtmlToPdf do
   Converts HTML to PDF via a Gotenberg instance.
 
   Configure the Gotenberg base URL with the `GOTENBERG_URL` environment variable.
+
+  Set `GOTENBERG_TIMEOUT` (milliseconds) to override the default request timeout of 30 000 ms.
   """
 
   @doc """
@@ -35,6 +37,15 @@ defmodule HtmlToPdf do
     end
   end
 
+  @default_timeout 30_000
+
+  defp request_timeout do
+    case System.get_env("GOTENBERG_TIMEOUT") do
+      nil -> @default_timeout
+      val -> String.to_integer(val)
+    end
+  end
+
   defp generate_pdf_request(html) do
     url = System.fetch_env!("GOTENBERG_URL") <> "/forms/chromium/convert/html"
     boundary = "----FormBoundary" <> (:crypto.strong_rand_bytes(8) |> Base.encode16())
@@ -47,7 +58,7 @@ defmodule HtmlToPdf do
 
     request = Finch.build(:post, url, headers, body)
 
-    case Finch.request(request, HtmlToPdf.Finch) do
+    case Finch.request(request, HtmlToPdf.Finch, receive_timeout: request_timeout()) do
       {:ok, %Finch.Response{status: 200, body: pdf}} ->
         {:ok, pdf}
 
